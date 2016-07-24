@@ -73,9 +73,6 @@ train <- train[, -(nearZeroVar(train))]
 # Keep only variables with less than 10% NA values
 train <- train[, ((sapply(train, function(x) mean(is.na(x)))) < .1)]
 
-# Ensure the columns are consistent
-identical(colnames(train), colnames(validate))
-colnames(train)
 ```
 
 ## Predictive Model Training
@@ -122,8 +119,11 @@ confusionMatrix(pred_rf, validate$classe)$overall['Accuracy']
 ```
 Comparing the random forest model, it has significantly better accuracy.  In fact, it predicted the training data perfectly.  It's also not badly overfitting the training data as it still has stellar accuracy on the validation training set.
 
+#### Estimate the Out of Sample Error
+The out of sample error can be estimated by [1-Accuracy] on the cross validation data set.  In this case we have a 99% accuracy, so I would estimate a 1% out of sample error.
+
 #### Generalized Boosted Model
-Finally, a GBM model is fit. A cross validation with 5 folds is performed in fitting the model to reduce out of sample error.  This is also a good example of the reduced complexity benefit you get from caret.  By not using the caret wrapper, an apply function needs to be used to get the mostly likely response.
+Finally, a GBM model is fit. An additional cross validation with 5 folds is performed in fitting the model to reduce out of sample error.  This is also a good example of the reduced complexity benefit you get from caret.  By not using the caret wrapper, an apply function needs to be used to get the mostly likely response.
 ```{r gbm model}
 model_gbm <- gbm(classe ~ ., data=train, cv.folds=5, distribution="multinomial")
 pred_gbm <- predict(model_gbm, validate, type="response")
@@ -135,6 +135,7 @@ Suprisingly, the accuracy of the GBM model is the lowest of the three selected f
 ## Final Prediction for Submission
 
 When first planning this project, I figured I would make use of a stacked model with the best performing 2-3 used to make the final prediction. Given the 99% accuracy of the random forest when used on the validation data set, I opted not to.  The final predictions from the random forest model are listed below.
+
 
 ```{r prediction}
 

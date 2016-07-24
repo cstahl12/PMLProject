@@ -198,30 +198,7 @@ validate &lt;- validate[, -(1:7)]
 train &lt;- train[, -(nearZeroVar(train))]
 
 # Keep only variables with less than 10% NA values
-train &lt;- train[, ((sapply(train, function(x) mean(is.na(x)))) &lt; .1)]
-
-# Ensure the columns are consistent
-identical(colnames(train), colnames(validate))</code></pre>
-<pre><code>## [1] FALSE</code></pre>
-<pre class="r"><code>colnames(train)</code></pre>
-<pre><code>##  [1] &quot;roll_belt&quot;            &quot;pitch_belt&quot;           &quot;yaw_belt&quot;            
-##  [4] &quot;total_accel_belt&quot;     &quot;gyros_belt_x&quot;         &quot;gyros_belt_y&quot;        
-##  [7] &quot;gyros_belt_z&quot;         &quot;accel_belt_x&quot;         &quot;accel_belt_y&quot;        
-## [10] &quot;accel_belt_z&quot;         &quot;magnet_belt_x&quot;        &quot;magnet_belt_y&quot;       
-## [13] &quot;magnet_belt_z&quot;        &quot;roll_arm&quot;             &quot;pitch_arm&quot;           
-## [16] &quot;yaw_arm&quot;              &quot;total_accel_arm&quot;      &quot;gyros_arm_x&quot;         
-## [19] &quot;gyros_arm_y&quot;          &quot;gyros_arm_z&quot;          &quot;accel_arm_x&quot;         
-## [22] &quot;accel_arm_y&quot;          &quot;accel_arm_z&quot;          &quot;magnet_arm_x&quot;        
-## [25] &quot;magnet_arm_y&quot;         &quot;magnet_arm_z&quot;         &quot;roll_dumbbell&quot;       
-## [28] &quot;pitch_dumbbell&quot;       &quot;yaw_dumbbell&quot;         &quot;total_accel_dumbbell&quot;
-## [31] &quot;gyros_dumbbell_x&quot;     &quot;gyros_dumbbell_y&quot;     &quot;gyros_dumbbell_z&quot;    
-## [34] &quot;accel_dumbbell_x&quot;     &quot;accel_dumbbell_y&quot;     &quot;accel_dumbbell_z&quot;    
-## [37] &quot;magnet_dumbbell_x&quot;    &quot;magnet_dumbbell_y&quot;    &quot;magnet_dumbbell_z&quot;   
-## [40] &quot;roll_forearm&quot;         &quot;pitch_forearm&quot;        &quot;yaw_forearm&quot;         
-## [43] &quot;total_accel_forearm&quot;  &quot;gyros_forearm_x&quot;      &quot;gyros_forearm_y&quot;     
-## [46] &quot;gyros_forearm_z&quot;      &quot;accel_forearm_x&quot;      &quot;accel_forearm_y&quot;     
-## [49] &quot;accel_forearm_z&quot;      &quot;magnet_forearm_x&quot;     &quot;magnet_forearm_y&quot;    
-## [52] &quot;magnet_forearm_z&quot;     &quot;classe&quot;</code></pre>
+train &lt;- train[, ((sapply(train, function(x) mean(is.na(x)))) &lt; .1)]</code></pre>
 </div>
 </div>
 <div id="predictive-model-training" class="section level2">
@@ -264,9 +241,13 @@ confusionMatrix(pred_rf, validate$classe)$overall['Accuracy']</code></pre>
 ## 0.9950722</code></pre>
 <p>Comparing the random forest model, it has significantly better accuracy. In fact, it predicted the training data perfectly. It’s also not badly overfitting the training data as it still has stellar accuracy on the validation training set.</p>
 </div>
+<div id="estimate-the-out-of-sample-error" class="section level4">
+<h4>Estimate the Out of Sample Error</h4>
+<p>The out of sample error can be estimated by [1-Accuracy] on the cross validation data set. In this case we have a 99% accuracy, so I would estimate a 1% out of sample error.</p>
+</div>
 <div id="generalized-boosted-model" class="section level4">
 <h4>Generalized Boosted Model</h4>
-<p>Finally, a GBM model is fit. A cross validation with 5 folds is performed in fitting the model to reduce out of sample error. This is also a good example of the reduced complexity benefit you get from caret. By not using the caret wrapper, an apply function needs to be used to get the mostly likely response.</p>
+<p>Finally, a GBM model is fit. An additional cross validation with 5 folds is performed in fitting the model to reduce out of sample error. This is also a good example of the reduced complexity benefit you get from caret. By not using the caret wrapper, an apply function needs to be used to get the mostly likely response.</p>
 <pre class="r"><code>model_gbm &lt;- gbm(classe ~ ., data=train, cv.folds=5, distribution=&quot;multinomial&quot;)
 pred_gbm &lt;- predict(model_gbm, validate, type=&quot;response&quot;)</code></pre>
 <pre><code>## Using 100 trees...</code></pre>
