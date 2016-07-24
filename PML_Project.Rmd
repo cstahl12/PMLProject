@@ -1,0 +1,147 @@
+---
+title: "PML Course Project"
+author: "Chris Stahl"
+date: "July 24, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Practical Machine Learning Course Project
+
+#### Objective
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it.
+
+In this project, the goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+#### Load environment
+```{r load environment}
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+library(gbm)
+library(caret)
+set.seed(14830)
+```
+
+#### Load data
+The training data for this project are available here: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har
+
+```{r load data }
+# use for model training and validation
+training_all <- read.csv("pml-training.csv", header = TRUE)
+# use for prediction
+test <- read.csv("pml-testing.csv", header = TRUE)
+inTrain  <- createDataPartition(training_all$classe, p=0.7, list=FALSE)
+train <- training_all[inTrain, ]
+validate  <- training_all[-inTrain, ]
+```
+
+#### Split data into Training and Validation sets
+For this project, the data has been saved to the local working directory. The "testing" set will be used for the predictions that will be submitted for the quiz.  The "training"" set will be split into two.  70% of the data will be used to train the model and 30% will be used to validate the accuracy of the model before submission.
+
+```{r split data }
+# use for model training and validation
+training_all <- read.csv("pml-training.csv", header = TRUE)
+# use for prediction
+test <- read.csv("pml-testing.csv", header = TRUE)
+inTrain  <- createDataPartition(training_all$classe, p=0.7, list=FALSE)
+train <- training_all[inTrain, ]
+validate  <- training_all[-inTrain, ]
+dim(train)
+```
+
+#### Cleaning the data
+The training set begins with 160 variables to use. The next step is to remove variables that are of less value to the predicition.  First, remove the first 1 variables as they are simply identifiers for the data and will have little predictive power. Next, identify variables with near zero variance and remove them.  Finally, remove variables that are "mostly NA" - we will assume variables with > 10% NA can be safely removed.
+
+```{r clean data, echo=TRUE, message=FALSE, warning=FALSE}
+# Eliminate first 7 columns because they are identification only and provide no predictive value
+colnames(train[, 1:7])
+train <- train[, -(1:7)]
+validate <- validate[, -(1:7)]
+
+# Remove near zero variance in training
+train <- train[, -(nearZeroVar(train))]
+
+# Keep only variables with less than 10% NA values
+train <- train[, ((sapply(train, function(x) mean(is.na(x)))) < .1)]
+
+# Ensure the columns are consistent
+identical(colnames(train), colnames(validate))
+colnames(train)
+```
+
+## Predictive Model Training
+In this section, three machine learning models will be evaluated: Decision Tree, Random Foreset, and Generalized Boosted Model.  Instead of using the caret package wrapper, I am opting to use each of the base machine learning functions.  Although we give up a reduction in complexity, the performance (from a speed perspective) seemed much better on the specific system being used. 
+
+#### Decision Tree Model
+
+```{r train decision }
+model_tree <- rpart(classe ~ ., data=train, method="class")
+pred_tree_train <- predict(model_tree, newdata=train, type="class")
+pred_tree_validate <- predict(model_tree, newdata=validate, type="class")
+```
+
+Check the confusion matrix for the accurracy of the model against the training data and the validation data.
+```{r dtree confmatrix }
+confusionMatrix(pred_tree_train, train$classe)$overall['Accuracy']
+confusionMatrix(pred_tree_validate, validate$classe)$overall['Accuracy']
+```
+
+There is only a slight decrease in accuracy when applied to the validation data, so the model seems to perform well in out of sample data.
+
+Pruning the tree may also reduce this error.  To do this, first plot the complexity parameters and look for the smallest cross validation error.
+
+```{r complexity parameter}
+plotcp(model_tree)
+```
+
+Given the plot, 0.01 can be used as the complexity parameter.  However, pruning the tree doesn't buy us much in accuracy improvement here.
+
+```{r pruning}
+cp <- 0.01
+model_ptree <- prune(model_tree, cp=cp)
+pred_ptree <- predict(model_ptree, newdata=validate, type="class")
+confusionMatrix(pred_ptree, validate$classe)$overall['Accuracy']
+```
+
+#### Random Forest Model
+```{r  rf training}
+model_rf <- randomForest(classe ~ ., data=train)
+pred_rf <- predict(model_rf, newdata=train, type="class")
+confusionMatrix(pred_rf, train$classe)$overall['Accuracy']
+pred_rf <- predict(model_rf, newdata=validate, type="class")
+confusionMatrix(pred_rf, validate$classe)$overall['Accuracy']
+```
+Comparing the random forest model, it has significantly better accuracy.  In fact, it predicted the training data perfectly.  It's also not badly overfitting the training data as it still has stellar accuracy on the validation training set.
+
+#### Generalized Boosted Model
+Finally, a GBM model is fit. A cross validation with 5 folds is performed in fitting the model to reduce out of sample error.  This is also a good example of the reduced complexity benefit you get from caret.  By not using the caret wrapper, an apply function needs to be used to get the mostly likely response.
+```{r gbm model}
+model_gbm <- gbm(classe ~ ., data=train, cv.folds=5, distribution="multinomial")
+pred_gbm <- predict(model_gbm, validate, type="response")
+pred_gbm_class <- apply(pred_gbm, 1, which.max)
+confusionMatrix(pred_gbm_class, as.numeric(validate$classe))$overall['Accuracy']
+```
+Suprisingly, the accuracy of the GBM model is the lowest of the three selected for this project.  If it weren't for the fact that the random forest model performed with high accuracy, it would make sense to troubleshoot this further and try to tune the training control parameters.  Others in the class seemed to get better accuracy through GBM, so it may be caused by avoiding parameters set by caret for GBM.
+
+## Final Prediction for Submission
+
+When first planning this project, I figured I would make use of a stacked model with the best performing 2-3 used to make the final prediction. Given the 99% accuracy of the random forest when used on the validation data set, I opted not to.  The final predictions from the random forest model are listed below.
+
+```{r prediction}
+
+pred_quiz <- predict(model_rf, newdata=test, type="class")
+pred_quiz
+
+```
+
+#### Results
+This random forest model was able to predict the classe variable of the test data set with 100% accurracy.  It turns out that this model did a great job in real life prediction for the Project Quiz.
